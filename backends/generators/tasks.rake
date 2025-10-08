@@ -7,6 +7,7 @@ require 'tempfile'
 directory "#{$root}/gen/go"
 directory "#{$root}/gen/c_header"
 directory "#{$root}/gen/sverilog"
+directory "#{$root}/gen/overlap_list"
 
 def with_resolved_exception_codes(cfg_arch)
   # Process ERB templates in exception codes using Ruby ERB processing
@@ -126,5 +127,31 @@ namespace :gen do
          "--resolved-codes=#{resolved_codes} " \
          "--output=#{output_dir}riscv_decode_package.svh --include-all"
     end
+  end
+
+  desc <<~DESC
+    Generate overlapping instruction declarations for simulators (e.g., Spike)
+    This detects instructions with overlapping encodings that need special handling
+
+    Options:
+     * OUTPUT_DIR - Output directory for generated overlap declarations (defaults to "#{$root}/gen/overlap_list")
+     * OUTPUT_FILE - Output file name (defaults to "overlap_list.h")
+  DESC
+  task overlap_list: "#{$root}/gen/overlap_list" do
+    config_name = ENV["CONFIG"] || "_"
+    output_dir = ENV["OUTPUT_DIR"] || "#{$root}/gen/overlap_list/"
+    output_file = ENV["OUTPUT_FILE"] || "overlap_list.h"
+
+    # Ensure the output directory exists
+    FileUtils.mkdir_p output_dir
+
+    # The overlap detector works on the standard spec directory
+    resolver = Udb::Resolver.new
+    cfg_arch = resolver.cfg_arch_for(config_name)
+    inst_dir = cfg_arch.path / "inst"
+
+    sh "#{$root}/.home/.venv/bin/python3 #{$root}/backends/generators/overlap_list/overlap_list_generator.py " \
+       "--inst-dir=#{inst_dir} " \
+       "--output=#{output_dir}#{output_file}"
   end
 end
